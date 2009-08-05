@@ -87,7 +87,7 @@ function fnListFeedFeedParse($input, $args, $parser)
     global $wgServer, $wgScript, $wgTitle, $egListFeedFeedUrlPrefix;
     $str = $parser->recursiveTagParse($input);
     // добавляем ссылку на ленту в статью
-    $header = '<link rel="alternate" type="application/rss+xml" title="'.$args['name'].'" href="'.$egListFeedFeedUrlPrefix.'/'.str_replace(' ','_',$args['name']).'.rss'.'" /><!-- LISTFEED_START --><!-- ';
+    $header = '<link rel="alternate" type="application/rss+xml" title="'.$args['name'].'" href="'.$egListFeedFeedUrlPrefix.'/'.str_replace(' ','_',$args['name']).'.rss'.'"></link><!-- LISTFEED_START --><!-- ';
     foreach ($args as $name => $value)
         $header .= htmlspecialchars($name).'="'.htmlspecialchars($value).'" ';
     $header .= '-->';
