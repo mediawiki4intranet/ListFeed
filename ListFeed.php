@@ -107,7 +107,7 @@ function fnListFeedNormalizeUrl($m)
     return $m[1].normalize_url($m[2], $evListFeedSRV);
 }
 
-function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, &$minoredit, $watchthis, $sectionanchor, &$flags, $revision)
+function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
 {
     global $wgParser, $egListFeedFeedDir, $egListFeedFeedUrlPrefix, $evListFeedSRV;
     if ($egListFeedFeedDir && preg_match('/<listfeed[^<>]*>/is', $text))
@@ -150,6 +150,7 @@ function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, &$mi
             $feed = preg_replace('#^(\s*</[^>]+>)+#is', '', $feed);
             $feed = preg_replace('#(<[^/][^>]*>\s*)+$#is', '', $feed);
             $in = 0;
+            $s = 0;
             while (($s = falsemin(strpos($feed, '<li', $s), strpos($feed, '</li', $s))) !== false)
             {
                 $pp = $s;

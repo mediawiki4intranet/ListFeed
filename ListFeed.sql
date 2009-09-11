@@ -10,7 +10,7 @@ CREATE TABLE /*_*/listfeed_items (
     -- Item text
     text BLOB NOT NULL default '',
     -- Item title
-    title VARBINARY(255) NOT NULL default '',
+    title BLOB NOT NULL default '',
     -- URL to article
     link VARBINARY(255) NOT NULL default '',
     -- Item author name
