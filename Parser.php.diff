@@ -1,0 +1,16 @@
+Index: Parser.php
+===================================================================
+--- Parser.php	(revision 56106)
++++ Parser.php	(working copy)
+@@ -3304,8 +3308,10 @@
+ 				$output = "<$name$attrText/>";
+ 			} else {
+ 				$close = is_null( $params['close'] ) ? '' : $frame->expand( $params['close'] );
+-				$output = "<$name$attrText>$content$close";
++				$output = "<$name$attrText>".$this->replaceVariables($content).$close;
+ 			}
++			if ($this->needPreSave[$name])
++				return $output;
+ 		}
+ 
+ 		if ( $name == 'html' || $name == 'nowiki' ) {

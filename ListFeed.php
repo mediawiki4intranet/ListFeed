@@ -72,6 +72,7 @@ function fnListFeedSetup()
     foreach ($evListFeedMonthMsgKeys as $key => $month)
         $evListFeedMonthMsgs[$key] = wfMsg($key);
     $wgParser->setHook('listfeed', 'fnListFeedFeedParse');
+    $wgParser->needPreSave['listfeed'] = true;
 }
 
 function fnListFeedCheckSchema()
