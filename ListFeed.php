@@ -128,7 +128,7 @@ function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, $min
         }
         if (is_null($revision) && $article->mRevision)
             $revision = $article->mRevision->getId();
-        $html = $wgParser->parse($text, $title, $options, true, true, $revision)->getText();
+        $html = $wgParser->parse($text, $article->getTitle(), $options, true, true, $revision)->getText();
         $html = preg_replace_callback('/(<(?:a|img)[^<>]*(?:href|src)=")([^<>"\']*)/is', 'fnListFeedNormalizeUrl', $html);
         // вытаскиваем и обновляем каналы
         preg_match_all('/<!--\s*LISTFEED_START\s*-->(.*?)<!--\s*LISTFEED_END\s*-->/is', $html, $m, PREG_PATTERN_ORDER);
