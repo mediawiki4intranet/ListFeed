@@ -128,7 +128,8 @@ function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, $min
         }
         if (is_null($revision) && $article->mRevision)
             $revision = $article->mRevision->getId();
-        $html = $wgParser->parse($text, $article->getTitle(), $options, true, true, $revision)->getText();
+        $text = "__NOTOC__".$text;
+        $html = $wgParser->parse($text, $article->getTitle(), $options, true, false, $revision)->getText();
         $html = preg_replace_callback('/(<(?:a|img)[^<>]*(?:href|src)=")([^<>"\']*)/is', 'fnListFeedNormalizeUrl', $html);
         // вытаскиваем и обновляем каналы
         preg_match_all('/<!--\s*LISTFEED_START\s*-->(.*?)<!--\s*LISTFEED_END\s*-->/is', $html, $m, PREG_PATTERN_ORDER);
@@ -257,8 +258,15 @@ function fnListFeedArticleSaveComplete (&$article, &$user, $text, $summary, $min
             {
                 if (!$items[$k][found])
                 {
-                    if (preg_match('#\d{2}:\d{2}(:\d{2})?\s*,\s*\d+\s+\S+\s+\d{4}#is', $items[$k][text], $m))
+                    if (preg_match('#\d{2}:\d{2}(:\d{2})?\s*,\s*\d+\s+\S+\s+\d{4}#is', $items[$k][text], $m) ||
+                        preg_match('#^[\s\d\-:]+#is', $items[$k][text], $m) ||
+                        preg_match('#^[^:]*:#is', $items[$k][text], $m))
+                    {
+                        $t = $m[0];
                         $items[$k][created] = $items[$k][modified] = fnListFeedParseSignDate($m[0]);
+                        if (trim($m[0], " \t\n\r\0\x0B:") == '' && substr($items[$k][title], 0, strlen($t)) == $t)
+                            $items[$k][title] = substr($items[$k][title], strlen($t));
+                    }
                     if (!$items[$k][created])
                         $items[$k][created] = $items[$k][modified] = time()-30;
                     $items[$k][author] = $user ? $user->getName() : '';
@@ -322,11 +330,12 @@ function normalize_url($l, $pre)
     return $l;
 }
 
-function fnListFeedParseSignDate($d)
+function fnListFeedParseSignDate(&$d)
 {
     global $evListFeedMonthMsgKeys, $evListFeedMonthMsgs;
     if (preg_match('#(\d{2}):(\d{2})(?::(\d{2}))?\s*,\s*(\d+)\s+(\S+)\s+(\d{4})#is', $d, $m))
     {
+        $d = preg_replace('#(\d{2}):(\d{2})(?::(\d{2}))?\s*,\s*(\d+)\s+(\S+)\s+(\d{4})#is', '', $d);
         $month = false;
         foreach ($evListFeedMonthMsgs as $key => $msg)
         {
@@ -339,6 +348,11 @@ function fnListFeedParseSignDate($d)
         if ($month === false)
             return 0;
         return mktime(0+$m[1], 0+$m[2], 0+$m[3], $month, 0+$m[4], 0+$m[6]);
+    }
+    else if (preg_match('#(\d{4})\W*(\d{2})\W*(\d{2})\W*(\d{2}):(\d{2})(?::(\d{2}))?#is', $d, $m))
+    {
+        $d = preg_replace('#(\d{4})\W*(\d{2})\W*(\d{2})\W*(\d{2}):(\d{2})(?::(\d{2}))?#is', '', $d);
+        return mktime(0+$m[4], 0+$m[5], 0+$m[6], 0+$m[2], 0+$m[3], 0+$m[1]);
     }
     return 0;
 }
