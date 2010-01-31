@@ -8,11 +8,11 @@ CREATE TABLE /*_*/listfeed_items (
     -- Item hash
     hash VARBINARY(32) NOT NULL default '',
     -- Item text
-    text BLOB NOT NULL default '',
+    text MEDIUMBLOB NOT NULL default '',
     -- Item title
-    title BLOB NOT NULL default '',
+    title MEDIUMBLOB NOT NULL default '',
     -- URL to article
-    link VARBINARY(255) NOT NULL default '',
+    link MEDIUMBLOB NOT NULL default '',
     -- Item author name
     author VARBINARY(255) NOT NULL default '',
     -- Item created timestamp
