@@ -422,7 +422,8 @@ class MWListFeed
             if ($strip)
                 $text = mb_substr($text, 0, $m[0][1]) . mb_substr($text, $m[0][1]+mb_strlen($m[0][0]));
             for ($i = 1; $i < count($m); $i++)
-                $val[$argv[$i-1]] = $m[$i][0];
+                if (strlen($m[$i][0]))
+                    $val[$argv[$i-1]] = $m[$i][0];
         }
         if ($val['epoch'])
             return $val['epoch'];
