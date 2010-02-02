@@ -1,19 +1,102 @@
 <?php
 
-# Two configuration variables:
-#$egListFeedFeedUrlPrefix = <URL location to generated static rss directory>
-#$egListFeedFeedDir = <Filesystem location to generated static rss directory>
+/**
+ * MediaWiki ListFeed extension
+ * Copyright © 2009-2010 Vitaliy Filippov
+ * http://yourcmc.ru/wiki/ListFeed_(MediaWiki)
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * http://www.gnu.org/copyleft/gpl.html
+ */
 
-require_once $IP.'/includes/Feed.php';
+/*
 
-class RSSFeedWithoutHttpHeaders extends RSSFeed
-{
-    function httpHeaders() {}
-}
+INSTALLATION
 
-$wgExtensionCredits['ListFeed'][] = array(
+$egListFeedFeedUrlPrefix = "<URL location of generated static rss directory>"; // default "$wgScriptPath/extensions/ListFeed/rss"
+$egListFeedFeedDir = "<Filesystem location of generated static rss directory>"; // default "$IP/extensions/ListFeed/rss"
+require_once("$IP/extensions/ListFeed/ListFeed.php");
+
+shell# php maintenance/update.php
+(this must be run to apply database schema updates)
+
+USAGE
+
+This extension enables two new tags - <listfeed> and <endlistfeed>, and a
+parser function - {{#listfeedurl:Feed Name}} which gives a URL location for feed
+with a given name. With ListFeed, you can convert any bullet-list or numbered list
+into an RSS feed which is automatically updated on page changes.
+
+Feeds are identified by their names. So two <listfeed>'s with the same name will
+overwrite each other on each page update.
+
+To use ListFeed, you must add the following _before_ your list:
+<listfeed name="<FEED NAME>" [OPTIONS]>
+FEED DESCRIPTION (any wikitext - it gets parsed to HTML code and included into RSS feed <about> element)
+</listfeed>
+And also add the following _after_ your list:
+<endlistfeed />
+
+You can then use parser function {{#listfeedurl:<FEED NAME>}} to get the URL location of
+your newly generated feed.
+
+OPTIONS include:
+
+date="<DATE REGEXP>"
+    Specify custom regular expression for parsing item dates.
+    DATE REGEXP is a special kind of regular expression - besides standard PCRE instructions,
+    it can include strftime(2)-like format specifiers. Attention: at the moment, this regexp
+    must not contain capturing group parenthesis, i.e., any (group) must be specified like
+    (?:group).
+
+    The following format specifiers are supported by now:
+    %Y              year (4 digits)
+    %y              year (2 digits)
+    %C              century (2 digits), optionally used in conjunction with %y and defaulted to current
+    %m              month (number 1-12)
+    %b or %B        month name - either long (January) or short (Jan)
+    %d              day of month (2 digits)
+    %e              day of month (1 or 2 digits)
+    %H or %h        hour
+    %M              minute
+    %S              second
+    %s              UNIX time - number of seconds passed since epoch (1970-01-01 00:00:00)
+    %%              % character
+
+headingdate="<DATE REGEXP>"
+    Dates, or their parts, could also be specified between list items.
+    Imagine an article with the following text:
+
+    <listfeed name="News of extension" date="^%b %d:\s*" headingdate="%Y" />
+    = 2010 news =
+    * Jan 13: New version of ListFeed.
+    * Jan 01: Happy New Year!
+    = 2009 news =
+    * Dec 17: ...
+    * ...
+    <endlistfeed />
+
+    Here, item dates could not be taken from item text. So we also need to parse the text
+    _between_ items and try to match headings taken from it against DATE REGEXP.
+    For the example described above, headingdate="%Y" is absolutely correct.
+
+*/
+
+$wgExtensionCredits['parserhook'][] = array(
     name           => 'List Feed',
-    version        => '1.0',
+    version        => '1.1',
     author         => 'Vitaliy Filippov',
     url            => 'http://yourcmc.ru/wiki/index.php/ListFeed_(MediaWiki)',
     description    => 'Allows to export Wiki lists into (static) RSS feeds with a minimal effort',
@@ -21,10 +104,15 @@ $wgExtensionCredits['ListFeed'][] = array(
 );
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 $wgHooks['LoadExtensionSchemaUpdates'][] = 'MWListFeed::LoadExtensionSchemaUpdates';
-$wgExtensionFunctions[] = 'MWListFeed::init';
+$wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
+$wgExtensionFunctions[] = array('MWListFeed', 'init');
 
-if (!$egListFeedFeedUrlPrefix || !$egListFeedFeedDir)
-    die('Please set $egListFeedFeedUrlPrefix (url location of rss feed directory) and $egListFeedFeedDir (its local filesystem location) in your LocalSettings.php');
+require_once $IP.'/includes/Feed.php';
+
+class RSSFeedWithoutHttpHeaders extends RSSFeed
+{
+    function httpHeaders() {}
+}
 
 class MWListFeed
 {
@@ -71,10 +159,12 @@ class MWListFeed
     static function init()
     {
         global $wgParser;
+        wfLoadExtensionMessages('ListFeed');
         foreach (self::$monthkeys as $key => $month)
             self::$monthmsgs[$key] = mb_strtolower(wfMsg($key));
-        $wgParser->setHook('listfeed', array(__CLASS__, 'feedParse'));
-        $wgParser->needPreSave['listfeed'] = true;
+        $wgParser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
+        $wgParser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
+        $wgParser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
     }
     static function LoadExtensionSchemaUpdates()
     {
@@ -83,19 +173,43 @@ class MWListFeed
             $dbw->sourceFile(dirname(__FILE__) . '/ListFeed.sql');
         return true;
     }
-    static function feedParse($input, $args, $parser)
+    static function feedFn($name)
     {
-        global $wgServer, $wgScript, $wgTitle, $egListFeedFeedUrlPrefix;
-        $str = $parser->recursiveTagParse($input);
-        // добавляем ссылку на ленту в статью
-        $header =
-            '<link rel="alternate" type="application/rss+xml" title="'.$args['name'].
-            '" href="'.$egListFeedFeedUrlPrefix.'/'.str_replace(' ','_',$args['name']).
-            '.rss'.'"></link><!-- LISTFEED_START --><!-- ';
+        global $egListFeedFeedDir, $IP;
+        $feeddir = $egListFeedFeedDir;
+        if (!$feeddir)
+            $feeddir = dirname(__FILE__).'/rss';
+        else
+            $feeddir = preg_replace('#/+$#', '', $feeddir);
+        return $feeddir.'/'.str_replace(' ','_',$name).'.rss';
+    }
+    static function feedUrl($parser, $name)
+    {
+        global $egListFeedFeedUrlPrefix, $wgScriptPath;
+        $p = $egListFeedFeedUrlPrefix;
+        if (!$p)
+        {
+            $p = $wgScriptPath . '/extensions/ListFeed/rss';
+            @mkdir(dirname(__FILE__).'/rss');
+        }
+        else
+            $p = preg_replace('#/+$#', '', $p);
+        return $p.'/'.str_replace(' ','_',$name).'.rss';
+    }
+    static function tag_listfeed($input, $args, $parser)
+    {
+        $r = '<link rel="alternate" type="application/rss+xml" title="'.$args['name'].
+             '" href="'.self::feedUrl($parser, $args['name']).'"></link><!-- listfeed ';
         foreach ($args as $name => $value)
-            $header .= htmlspecialchars($name).'="'.htmlspecialchars($value).'" ';
-        $header .= '-->';
-        return $header.$str.'<!-- LISTFEED_END -->';
+            $r .= htmlspecialchars($name).'="'.htmlspecialchars($value).'" ';
+        $r .= '-->';
+        if ($input)
+            $r .= '<!-- listfeed_description -->'.$parser->recursiveTagParse($input).'<!-- /listfeed_description -->';
+        return $r;
+    }
+    static function tag_endlistfeed($input, $args, $parser)
+    {
+        return '<!-- /listfeed -->';
     }
     static function falsemin($a, $b)
     {
@@ -130,8 +244,8 @@ class MWListFeed
     }
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
-        global $wgParser, $egListFeedFeedDir, $egListFeedFeedUrlPrefix;
-        if ($egListFeedFeedDir && preg_match('/<listfeed[^<>]*>/is', $text))
+        global $wgParser;
+        if (preg_match('/<listfeed[^<>]*>/is', $text))
         {
             // получаем HTML-код статьи с абсолютными ссылками
             $srv = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') ? 'https' : 'http';
@@ -155,24 +269,30 @@ class MWListFeed
             $html = preg_replace_callback('/(<(?:a|img)[^<>]*(?:href|src)=")([^<>"\']*)/is', array(__CLASS__, 'normalize_url_callback'), $html);
             // вытаскиваем и обновляем каналы
             $feeds = array();
-            $e = 0;
-            while (($p = strpos($html, '<!-- LISTFEED_START -->', $e+1)) !== false)
+            $e = -1;
+            while (preg_match('#<!--\s*listfeed\s*([^<>]*?)-->#is', $html, $m, PREG_OFFSET_CAPTURE, $e+1))
             {
-                if (($e = strpos($html, '<!-- LISTFEED_END -->', $p+1)) === false)
+                $p = $m[0][1];
+                $prop = $m[1][0];
+                if (!preg_match('#<!--\s*/listfeed\s*-->#is', $html, $m, PREG_OFFSET_CAPTURE, $p+1))
                     break;
-                $feeds[] = substr($html, $p+23, $e-$p-23);
+                $e = $m[0][1];
+                $feed = substr($html, $p, $e-$p);
+                if (preg_match('#<!--\s*listfeed_description\s*-->(.*)<!--\s*/listfeed_description\s*-->#is', $feed, $m, PREG_OFFSET_CAPTURE))
+                {
+                    $feed = substr($feed, 0, $m[0][1]) . substr($feed, $m[0][1]+strlen($m[0][0]));
+                    $prop['about'] = $m[0][0];
+                }
+                $feeds[] = array($feed, $prop);
             }
             foreach ($feeds as $feed)
             {
                 // сначала параметры канала
                 $args = array();
-                if (preg_match('/^\s*<!--\s*(.*?)\s*-->/is', $feed, $s))
-                {
-                    preg_match_all('/([^=\s]+)="([^"]*)"/is', $s[1], $ar, PREG_SET_ORDER);
-                    foreach ($ar as $i)
-                        $args[html_entity_decode($i[1])] = html_entity_decode($i[2]);
-                    $feed = substr($feed, strlen($s[0]));
-                }
+                preg_match_all('/([^=\s]+)="([^"]*)"/is', $feed[1], $ar, PREG_SET_ORDER);
+                foreach ($ar as $i)
+                    $args[html_entity_decode($i[1])] = html_entity_decode($i[2]);
+                $feed = $feed[0];
                 if (!$args['name'])
                     continue;
                 $date_re = '^[^:]*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y';
@@ -345,7 +465,7 @@ class MWListFeed
                         $maxcreated = $i[created];
                 // генерируем RSS-ленту
                 ob_start();
-                $feedStream = new RSSFeedWithoutHttpHeaders($args['name'], $args['about'], $egListFeedFeedUrlPrefix.'/'.str_replace(' ','_',$args['name']).'.rss', $maxcreated);
+                $feedStream = new RSSFeedWithoutHttpHeaders($args['name'], $args['about'], self::feedUrl($wgParser, $args['name']), $maxcreated);
                 $feedStream->outHeader();
                 foreach ($items as $item)
                     $feedStream->outItem(new FeedItem($item['title'], $item['text'], $item['link'], $item['created'], $item['author']));
@@ -353,7 +473,7 @@ class MWListFeed
                 $rss = ob_get_contents();
                 ob_end_clean();
                 // и сохраняем её в файл
-                file_put_contents($egListFeedFeedDir.'/'.str_replace(' ','_',$args['name']).'.rss', $rss);
+                file_put_contents(self::feedFn($args['name']), $rss);
             }
         }
         return true;
