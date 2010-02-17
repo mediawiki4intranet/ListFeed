@@ -172,11 +172,11 @@ class MWListFeed
     }
     static function feedUrl($parser, $name)
     {
-        global $egListFeedFeedUrlPrefix, $wgScriptPath;
+        global $egListFeedFeedUrlPrefix, $wgScriptPath, $wgServer;
         $p = $egListFeedFeedUrlPrefix;
         if (!$p)
         {
-            $p = $wgScriptPath . '/extensions/ListFeed/rss';
+            $p = $wgServer . $wgScriptPath . '/extensions/ListFeed/rss';
             @mkdir(dirname(__FILE__).'/rss');
         }
         else
