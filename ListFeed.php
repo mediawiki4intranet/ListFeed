@@ -285,7 +285,7 @@ class MWListFeed
                 $feed = $feed[0];
                 if (!$args['name'])
                     continue;
-                $date_re = '^[^:]*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
+                $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
                 if ($args['date'])
                     $date_re = $args['date'];
                 $headdate_re = '';
@@ -335,15 +335,15 @@ class MWListFeed
                             $title = $item;
                         $title = strip_tags($title);
                         self::parse_date($title, $date_re, true);
-                        $stripped = strip_tags($item);
-                        $itemnosign = $stripped;
+                        $itemnosign = $item;
                         $d = self::parse_date($itemnosign, $date_re, true, $defdate);
                         if (!$d)
                             $d = wfTimestamp(TS_UNIX, $article->getTimestamp());
+                        $hash = md5($itemnosign != $item ? $d.':'.$itemnosign : $item);
                         if (preg_match('#<a[^<>]*href=["\']([^<>"\']+)["\']#is', $itemnosign, $p))
                             $link = $p[1];
                         else
-                            $link = '';
+                            $link = $article->getTitle()->getFullUrl().'#feeditem'.$hash;
                         if ($d > $maxdate)
                             $maxdate = $d;
                         $author = '';
@@ -356,7 +356,7 @@ class MWListFeed
                             text     => $item,
                             title    => $title,
                             link     => $link,
-                            hash     => md5($itemnosign != $stripped ? $d.':'.$itemnosign : $stripped),
+                            hash     => $hash,
                             created  => $d,
                             modified => $d,
                             author   => $author,
