@@ -29,9 +29,6 @@ $egListFeedFeedUrlPrefix = "<URL location of generated static rss directory>"; /
 $egListFeedFeedDir = "<Filesystem location of generated static rss directory>"; // default "$IP/extensions/ListFeed/rss"
 require_once("$IP/extensions/ListFeed/ListFeed.php");
 
-shell# php maintenance/update.php
-(this must be run to apply database schema updates)
-
 USAGE
 
 This extension enables two new tags - <listfeed> and <endlistfeed>, and a
@@ -57,9 +54,7 @@ OPTIONS include:
 date="<DATE REGEXP>"
     Specify custom regular expression for parsing item dates.
     DATE REGEXP is a special kind of regular expression - besides standard PCRE instructions,
-    it can include strftime(2)-like format specifiers. Attention: at the moment, this regexp
-    must not contain capturing group parenthesis, i.e., any (group) must be specified like
-    (?:group).
+    it can include strftime(2)-like format specifiers.
 
     The following format specifiers are supported by now:
     %Y              year (4 digits)
@@ -103,7 +98,6 @@ $wgExtensionCredits['parserhook'][] = array(
     descriptionmsg => 'listfeed-desc',
 );
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
-$wgHooks['LoadExtensionSchemaUpdates'][] = 'MWListFeed::LoadExtensionSchemaUpdates';
 $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
 $wgExtensionFunctions[] = array('MWListFeed', 'init');
 
@@ -165,13 +159,6 @@ class MWListFeed
         $wgParser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
         $wgParser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
         $wgParser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
-    }
-    static function LoadExtensionSchemaUpdates()
-    {
-        $dbw = wfGetDB(DB_MASTER);
-        if (!$dbw->tableExists('listfeed_items'))
-            $dbw->sourceFile(dirname(__FILE__) . '/ListFeed.sql');
-        return true;
     }
     static function feedFn($name)
     {
@@ -244,7 +231,7 @@ class MWListFeed
     }
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
-        global $wgParser;
+        global $wgParser, $wgContLang;
         if (preg_match('/<listfeed[^<>]*>/is', $text))
         {
             // получаем HTML-код статьи с абсолютными ссылками
@@ -274,6 +261,7 @@ class MWListFeed
             {
                 $p = $m[0][1];
                 $prop = $m[1][0];
+                $about = '';
                 if (!preg_match('#<!--\s*/listfeed\s*-->#is', $html, $m, PREG_OFFSET_CAPTURE, $p+1))
                     break;
                 $e = $m[0][1];
@@ -281,9 +269,9 @@ class MWListFeed
                 if (preg_match('#<!--\s*listfeed_description\s*-->(.*)<!--\s*/listfeed_description\s*-->#is', $feed, $m, PREG_OFFSET_CAPTURE))
                 {
                     $feed = substr($feed, 0, $m[0][1]) . substr($feed, $m[0][1]+strlen($m[0][0]));
-                    $prop['about'] = $m[0][0];
+                    $about = $m[1][0];
                 }
-                $feeds[] = array($feed, $prop);
+                $feeds[] = array($feed, $prop, $about);
             }
             foreach ($feeds as $feed)
             {
@@ -292,10 +280,12 @@ class MWListFeed
                 preg_match_all('/([^=\s]+)="([^"]*)"/is', $feed[1], $ar, PREG_SET_ORDER);
                 foreach ($ar as $i)
                     $args[html_entity_decode($i[1])] = html_entity_decode($i[2]);
+                if ($feed[2])
+                    $args['about'] = $feed[2];
                 $feed = $feed[0];
                 if (!$args['name'])
                     continue;
-                $date_re = '^[^:]*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y';
+                $date_re = '^[^:]*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
                 if ($args['date'])
                     $date_re = $args['date'];
                 $headdate_re = '';
@@ -310,6 +300,8 @@ class MWListFeed
                 $s = 0;
                 $lastend = 0;
                 $defdate = array();
+                $i = 0;
+                $maxdate = 0;
                 while (($s = self::falsemin(strpos($feed, '<li', $s), strpos($feed, '</li', $s))) !== false)
                 {
                     $pp = $s;
@@ -327,7 +319,7 @@ class MWListFeed
                             preg_match_all('/<h([1-6])(?:\s+[^<>]+)?>(.*?)<\/h\1\s*>/', substr($feed, $lastend, $start-$lastend), $m, PREG_PATTERN_ORDER);
                             foreach ($m[2] as $head)
                             {
-                                $d = self::parse_date($head, $headdate_re, false, array(), false);
+                                $d = self::parse_date($head, $headdate_re, false, $defdate, false);
                                 if (is_array($d))
                                     $defdate = $d;
                                 else
@@ -343,129 +335,40 @@ class MWListFeed
                             $title = $item;
                         $title = strip_tags($title);
                         self::parse_date($title, $date_re, true);
-                        $itemnosign = $item;
+                        $stripped = strip_tags($item);
+                        $itemnosign = $stripped;
                         $d = self::parse_date($itemnosign, $date_re, true, $defdate);
+                        if (!$d)
+                            $d = wfTimestamp(TS_UNIX, $article->getTimestamp());
                         if (preg_match('#<a[^<>]*href=["\']([^<>"\']+)["\']#is', $itemnosign, $p))
                             $link = $p[1];
                         else
                             $link = '';
+                        if ($d > $maxdate)
+                            $maxdate = $d;
+                        $author = '';
+                        if (preg_match('#<a[^<>]*href=["\'][^<>\'"\s]*'.preg_quote(urlencode($wgContLang->getNsText(NS_USER))).':([^<>\'"\s\#]*)#is', $item, $m))
+                            $author = urldecode($m[1]);
+                        if (!$author && $user)
+                            $author = $user->getName();
                         $items[] = array(
-                            feed  => $args['name'],
-                            text  => $item,
-                            title => $title,
-                            link  => $link,
-                            hash  => md5($itemnosign != $item ? $d.':'.$itemnosign : $item),
-                            created => $d,
+                            feed     => $args['name'],
+                            text     => $item,
+                            title    => $title,
+                            link     => $link,
+                            hash     => md5($itemnosign != $stripped ? $d.':'.$itemnosign : $stripped),
+                            created  => $d,
+                            modified => $d,
+                            author   => $author,
+                            i        => $i++,
                         );
                     }
                 }
-                // всасываем старый список в $olditems
-                $dbw = wfGetDB(DB_MASTER);
-                $olditems = array();
-                $res = $dbw->select('listfeed_items', '*', array('feed' => $args['name']), __METHOD__, array('ORDER BY' => 'created DESC'));
-                while ($row = $dbw->fetchRow($res))
-                    $olditems[] = $row;
-                $dbw->freeResult($res);
-                // сравниваем старый список элементов с новым
-                $olditemsbyhash = array();
-                for ($i = 0; $i < count($olditems); $i++)
-                {
-                    $olditems[$i][position] = $i;
-                    $olditemsbyhash[$olditems[$i][hash]] = &$olditems[$i];
-                }
-                $add = array();
-                $remove = array();
-                $allnew = true;
-                for ($k = 0; $k < count($items); $k++)
-                {
-                    if ($olditemsbyhash[$items[$k][hash]])
-                    {
-                        $olditemsbyhash[$items[$k][hash]][found] = true;
-                        $items[$k][found] = true;
-                        $allnew = false;
-                    }
-                }
-                // если ни одного идентичного старым, значит все новые...
-                if (!$allnew)
-                {
-                    // сначала ищем по контексту размера 1 вперёд
-                    for ($k = 0; $k < count($items); $k++)
-                    {
-                        if (!$items[$k][found])
-                        {
-                            if ($k > 0 && ($p = $items[$k-1]) &&
-                                $p[found] && ($np = $olditemsbyhash[$p[hash]][position]+1) < count($olditems) &&
-                                !$olditems[$np][found])
-                            {
-                                if ($items[$k][created] == $olditems[$np][created])
-                                    $olditemsbyhash[$items[$k][hash]] = $olditems[$np];
-                                else
-                                    $items[$k][created] = $olditems[$np][created];
-                                $items[$k][modified] = time();
-                                $items[$k][found] = true;
-                                $olditems[$np][found] = true;
-                                $remove[] = $olditems[$np][hash];
-                                $add[] = $items[$k];
-                            }
-                        }
-                    }
-                    // потом назад
-                    for ($k = count($items)-1; $k >= 0; $k--)
-                    {
-                        if (!$items[$k][found])
-                        {
-                            if ($k+1 < count($items) && ($p = $items[$k+1]) &&
-                                $p[found] && ($np = $olditemsbyhash[$p[hash]][position]-1) >= 0 &&
-                                !$olditems[$np][found])
-                            {
-                                if ($items[$k][created] == $olditems[$np][created])
-                                    $olditemsbyhash[$items[$k][hash]] = $olditems[$np];
-                                else
-                                    $items[$k][created] = $olditems[$np][created];
-                                $items[$k][modified] = time();
-                                $items[$k][found] = true;
-                                $olditems[$np][found] = true;
-                                $remove[] = $olditems[$np][hash];
-                                $add[] = $items[$k];
-                            }
-                        }
-                    }
-                }
-                // и потом всё несопоставленное принимаем за новое
-                for ($k = count($items)-1; $k >= 0; $k--)
-                {
-                    if (!$items[$k][found])
-                    {
-                        if (!$items[$k][created])
-                            $items[$k][created] = time()-30;
-                        if (!$items[$k][modified])
-                            $items[$k][modified] = $items[$k][created];
-                        $items[$k][author] = $user ? $user->getName() : '';
-                        $items[$k][found] = true;
-                        $add[] = $items[$k];
-                    }
-                }
-                // удаляем $remove и добавляем $add
-                foreach ($add as $i)
-                {
-                    unset($i[found]);
-                    $dbw->insert('listfeed_items', $i, __METHOD__);
-                }
-                foreach ($remove as $i)
-                    $dbw->delete('listfeed_items', array(feed => $args['name'], hash => $i), __METHOD__);
-                // перезасасываем элементы из базы и генерируем статические RSS-файлы
-                $items = array();
-                $res = $dbw->select('listfeed_items', '*', array('feed' => $args['name']), __METHOD__, array('ORDER BY' => 'created DESC'));
-                while ($row = $dbw->fetchRow($res))
-                    $items[] = $row;
-                $dbw->freeResult($res);
-                $maxcreated = 0;
-                foreach ($items as $i)
-                    if ($i[created] > $maxcreated)
-                        $maxcreated = $i[created];
+                // сортируем элементы по убыванию даты
+                usort($items, 'MWListFeed::item_compare');
                 // генерируем RSS-ленту
                 ob_start();
-                $feedStream = new RSSFeedWithoutHttpHeaders($args['name'], $args['about'], self::feedUrl($wgParser, $args['name']), $maxcreated);
+                $feedStream = new RSSFeedWithoutHttpHeaders($args['name'], $args['about'], self::feedUrl($wgParser, $args['name']), $maxdate);
                 $feedStream->outHeader();
                 foreach ($items as $item)
                     $feedStream->outItem(new FeedItem($item['title'], $item['text'], $item['link'], $item['created'], $item['author']));
@@ -478,56 +381,80 @@ class MWListFeed
         }
         return true;
     }
+    // функция сравнения дат элементов
+    static function item_compare($a, $b)
+    {
+        if ($a['created'] < $b['created'])
+            return 1;
+        elseif ($a['created'] > $b['created'])
+            return -1;
+        if ($a['i'] < $b['i'])
+            return 1;
+        elseif ($a['i'] > $b['i'])
+            return -1;
+        return 0;
+    }
     static $date_pcre_cache;
     static function compile_date_re($date_re)
     {
         if ($date_pcre_cache[$date_re])
             return $date_pcre_cache[$date_re];
+        // сначала определяем занятые ключи
+        preg_match_all('/'.str_replace('/','\\/',$date_re).'/', '', $nonfree, PREG_PATTERN_ORDER);
+        $key = 1;
         $pcre = '';
         $argv = array();
         $d = $date_re;
         $t = array('H' => 'hour', 'h' => 'hour', 'M' => 'minute', 'm' => 'month', 'S' => 'second', 'C' => 'century', 'd' => 'day');
         while (preg_match('/^([^%]*)%(.)/s', $d, $m))
         {
+            while (array_key_exists('d'.$key, $nonfree))
+                $key++;
+            $arg = false;
             $pcre .= str_replace('/', '\\/', $m[1]);
             $d = substr($d, strlen($m[0]));
             if ($m[2] == 'H' || $m[2] == 'h' || $m[2] == 'M' ||
                 $m[2] == 'm' || $m[2] == 'S' || $m[2] == 'C' ||
                 $m[2] == 'd')
             {
-                $pcre .= '(\d{2})';
-                $argv[] = $t[$m[2]];
+                $pcre .= "(?<d$key>\\d{2})";
+                $arg = $t[$m[2]];
             }
             else if ($m[2] == 'Y')
             {
-                $pcre .= '(\d{4})';
-                $argv[] = 'year';
+                $pcre .= "(?<d$key>\\d{4})";
+                $arg = 'year';
             }
             else if ($m[2] == 'y')
             {
-                $pcre .= '(\d{2})';
-                $argv[] = 'year2digit';
+                $pcre .= "(?<d$key>\\d{2})";
+                $arg = 'year2digit';
             }
             else if ($m[2] == 'b' || $m[2] == 'B')
             {
-                $pcre .= '(\S+)';
-                $argv[] = 'monthname';
+                $pcre .= "(?<d$key>\\S+)";
+                $arg = 'monthname';
             }
             else if ($m[2] == 'e')
             {
-                $pcre .= '\s*(\d\d?)';
-                $argv[] = 'day';
+                $pcre .= "\s*(?<d$key>\\d\\d?)";
+                $arg = 'day';
             }
             else if ($m[2] == 's')
             {
-                $pcre .= '(\d+)';
-                $argv[] = 'epoch';
+                $pcre .= "(?<d$key>\\d+)";
+                $arg = 'epoch';
             }
             else if ($m[2] == '%')
                 $pcre .= '%';
             else
             {
                 /* Error - unknown format character */
+            }
+            if ($arg)
+            {
+                $argv[$key] = $arg;
+                $key++;
             }
         }
         $pcre .= str_replace('/', '\\/', $d);
@@ -541,9 +468,9 @@ class MWListFeed
         {
             if ($strip)
                 $text = mb_substr($text, 0, $m[0][1]) . mb_substr($text, $m[0][1]+mb_strlen($m[0][0]));
-            for ($i = 1; $i < count($m); $i++)
-                if (strlen($m[$i][0]))
-                    $val[$argv[$i-1]] = $m[$i][0];
+            foreach ($argv as $k => $v)
+                if (strlen($m[$k][0]))
+                    $val[$v] = $m[$k][0];
         }
         if ($val['epoch'])
             return $val['epoch'];
@@ -624,5 +551,3 @@ class MWListFeed
         return mktime($hour, $minute, $second, $month, $day, $year);
     }
 };
-
-?>
