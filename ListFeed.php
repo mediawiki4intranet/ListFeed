@@ -160,15 +160,22 @@ class MWListFeed
         $wgParser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
         $wgParser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
     }
-    static function feedFn($name)
+    static function feedFn($name, $prefix = NULL)
     {
-        global $egListFeedFeedDir, $IP;
-        $feeddir = $egListFeedFeedDir;
-        if (!$feeddir)
-            $feeddir = dirname(__FILE__).'/rss';
-        else
-            $feeddir = preg_replace('#/+$#', '', $feeddir);
-        return $feeddir.'/'.str_replace(' ','_',$name).'.rss';
+        if (!$prefix)
+        {
+            global $egListFeedFeedDir;
+            $prefix = $egListFeedFeedDir;
+            if (!$prefix)
+                $prefix = dirname(__FILE__).'/rss';
+        }
+        $prefix = preg_replace('#/+$#', '', $prefix);
+        // preg_replace не работает как положено :-( не понимает юникодные классы символов
+        mb_regex_encoding('utf-8');
+        $name = mb_eregi_replace('[[:^alnum:]]+', '_', $name);
+        $name = mb_eregi_replace('^_|_$', '', $name);
+        $name = $prefix.'/'.$name.'.rss';
+        return $name;
     }
     static function feedUrl($parser, $name)
     {
@@ -179,9 +186,7 @@ class MWListFeed
             $p = $wgServer . $wgScriptPath . '/extensions/ListFeed/rss';
             @mkdir(dirname(__FILE__).'/rss');
         }
-        else
-            $p = preg_replace('#/+$#', '', $p);
-        return $p.'/'.str_replace(' ','_',$name).'.rss';
+        return self::feedFn($name, $p);
     }
     static function tag_listfeed($input, $args, $parser)
     {
