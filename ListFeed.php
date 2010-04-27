@@ -90,12 +90,12 @@ headingdate="<DATE REGEXP>"
 */
 
 $wgExtensionCredits['parserhook'][] = array(
-    name           => 'List Feed',
-    version        => '1.1',
-    author         => 'Vitaliy Filippov',
-    url            => 'http://yourcmc.ru/wiki/index.php/ListFeed_(MediaWiki)',
-    description    => 'Allows to export Wiki lists into (static) RSS feeds with a minimal effort',
-    descriptionmsg => 'listfeed-desc',
+    'name'           => 'List Feed',
+    'version'        => '1.11',
+    'author'         => 'Vitaliy Filippov',
+    'url'            => 'http://yourcmc.ru/wiki/index.php/ListFeed_(MediaWiki)',
+    'description'    => 'Allows to export Wiki lists into (static) RSS feeds with a minimal effort',
+    'descriptionmsg' => 'listfeed-desc',
 );
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
