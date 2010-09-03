@@ -290,7 +290,7 @@ class MWListFeed
                 $feed = $feed[0];
                 if (!$args['name'])
                     continue;
-                $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?,\s*%d\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
+                $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?[\s,]*%e\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
                 if ($args['date'])
                     $date_re = $args['date'];
                 $headdate_re = '';
@@ -357,15 +357,15 @@ class MWListFeed
                         if (!$author && $user)
                             $author = $user->getName();
                         $items[] = array(
-                            feed     => $args['name'],
-                            text     => $item,
-                            title    => $title,
-                            link     => $link,
-                            hash     => $hash,
-                            created  => $d,
-                            modified => $d,
-                            author   => $author,
-                            i        => $i++,
+                            'feed'     => $args['name'],
+                            'text'     => $item,
+                            'title'    => $title,
+                            'link'     => $link,
+                            'hash'     => $hash,
+                            'created'  => $d,
+                            'modified' => $d,
+                            'author'   => $author,
+                            'i'        => $i++,
                         );
                     }
                 }
@@ -476,6 +476,11 @@ class MWListFeed
             foreach ($argv as $k => $v)
                 if (strlen($m[$k][0]))
                     $val[$v] = $m[$k][0];
+        }
+        if (!$val)
+        {
+            /* TODO желательно показывать это как-то в видимом месте. Например, в RSS'ке. */
+            wfDebug(__CLASS__.": Unparsed date text: $text, date regexp is $date_re\n");
         }
         if ($val['epoch'])
             return $val['epoch'];
