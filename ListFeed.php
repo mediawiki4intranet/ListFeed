@@ -290,7 +290,7 @@ class MWListFeed
                 $feed = $feed[0];
                 if (!$args['name'])
                     continue;
-                $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?[\s,]*%e\s+%b\s+%Y(?:\s*\(UTC\))?(?:\s*:?)';
+                $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?[\s,]*%e\s+%b\s+%Y(?:\s*\([A-Z]{3}\))?(?:\s*:?)';
                 if ($args['date'])
                     $date_re = $args['date'];
                 $headdate_re = '';
