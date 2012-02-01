@@ -155,7 +155,7 @@ class MWListFeed
         global $wgParser;
         wfLoadExtensionMessages('ListFeed');
         foreach (self::$monthkeys as $key => $month)
-            self::$monthmsgs[$key] = mb_strtolower(wfMsgNoDB($key));
+            self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
         $wgParser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
         $wgParser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
         $wgParser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
