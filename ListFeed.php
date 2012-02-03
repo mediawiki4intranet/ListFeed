@@ -2,8 +2,8 @@
 
 /**
  * MediaWiki ListFeed extension
- * Copyright © 2009-2010 Vitaliy Filippov
- * http://yourcmc.ru/wiki/ListFeed_(MediaWiki)
+ * Copyright © 2009+ Vitaliy Filippov
+ * http://wiki.4intra.net/ListFeed
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,9 +91,9 @@ headingdate="<DATE REGEXP>"
 
 $wgExtensionCredits['parserhook'][] = array(
     'name'           => 'List Feed',
-    'version'        => '1.11',
+    'version'        => '1.12 (2012-02-02)',
     'author'         => 'Vitaliy Filippov',
-    'url'            => 'http://yourcmc.ru/wiki/index.php/ListFeed_(MediaWiki)',
+    'url'            => 'http://wiki.4intra.net/ListFeed',
     'description'    => 'Allows to export Wiki lists into (static) RSS feeds with a minimal effort',
     'descriptionmsg' => 'listfeed-desc',
 );
@@ -101,7 +101,8 @@ $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
 $wgExtensionFunctions[] = array('MWListFeed', 'init');
 
-require_once $IP.'/includes/Feed.php';
+$egListFeedFeedUrlPrefix = "$wgScriptPath/extensions/ListFeed/rss";
+$egListFeedFeedDir = "$IP/extensions/ListFeed/rss";
 
 class RSSFeedWithoutHttpHeaders extends RSSFeed
 {
@@ -223,7 +224,7 @@ class MWListFeed
                         $pre .= '/';
                     $l = $pre . $l;
                 }
-                else if (preg_match('#^[a-z0-9_]+://#is', $pre, $m))
+                elseif (preg_match('#^[a-z0-9_]+://#is', $pre, $m))
                     $l = substr($pre, 0, strpos($pre, '/', strlen($m[0]))) . $l;
             }
             return $l;
@@ -291,10 +292,10 @@ class MWListFeed
                 if (!$args['name'])
                     continue;
                 $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?[\s,]*%e\s+%b\s+%Y(?:\s*\([A-Z]{3}\))?(?:\s*:?)';
-                if ($args['date'])
+                if (isset($args['date']))
                     $date_re = $args['date'];
                 $headdate_re = '';
-                if ($args['headingdate'])
+                if (isset($args['headingdate']))
                     $headdate_re = $args['headingdate'];
                 // потом вытаскиваем элементы с учётом вложенных списков...
                 $items = array();
@@ -402,8 +403,8 @@ class MWListFeed
     static $date_pcre_cache;
     static function compile_date_re($date_re)
     {
-        if ($date_pcre_cache[$date_re])
-            return $date_pcre_cache[$date_re];
+        if (self::$date_pcre_cache[$date_re])
+            return self::$date_pcre_cache[$date_re];
         // сначала определяем занятые ключи
         preg_match_all('/'.str_replace('/','\\/',$date_re).'/', '', $nonfree, PREG_PATTERN_ORDER);
         $key = 1;
@@ -425,32 +426,32 @@ class MWListFeed
                 $pcre .= "(?<d$key>\\d{2})";
                 $arg = $t[$m[2]];
             }
-            else if ($m[2] == 'Y')
+            elseif ($m[2] == 'Y')
             {
                 $pcre .= "(?<d$key>\\d{4})";
                 $arg = 'year';
             }
-            else if ($m[2] == 'y')
+            elseif ($m[2] == 'y')
             {
                 $pcre .= "(?<d$key>\\d{2})";
                 $arg = 'year2digit';
             }
-            else if ($m[2] == 'b' || $m[2] == 'B')
+            elseif ($m[2] == 'b' || $m[2] == 'B')
             {
                 $pcre .= "(?<d$key>\\S+)";
                 $arg = 'monthname';
             }
-            else if ($m[2] == 'e')
+            elseif ($m[2] == 'e')
             {
                 $pcre .= "\s*(?<d$key>\\d\\d?)";
                 $arg = 'day';
             }
-            else if ($m[2] == 's')
+            elseif ($m[2] == 's')
             {
                 $pcre .= "(?<d$key>\\d+)";
                 $arg = 'epoch';
             }
-            else if ($m[2] == '%')
+            elseif ($m[2] == '%')
                 $pcre .= '%';
             else
             {
@@ -482,10 +483,11 @@ class MWListFeed
             /* TODO желательно показывать это как-то в видимом месте. Например, в RSS'ке. */
             wfDebug(__CLASS__.": Unparsed date text: $text, date regexp is $date_re\n");
         }
-        if ($val['epoch'])
+        if (isset($val['epoch']))
             return $val['epoch'];
-        else if ($t = $def['epoch'])
+        elseif (isset($def['epoch']))
         {
+            $t = $def['epoch'];
             $def['year']   = date('Y', $t);
             $def['month']  = date('m', $t);
             $def['day']    = date('d', $t);
@@ -493,11 +495,12 @@ class MWListFeed
             $def['minute'] = date('i', $t);
             $def['second'] = date('s', $t);
         }
-        if ($val['year'])
+        if (isset($val['year']))
             $year = 0+$val['year'];
-        else if (strlen($year = $val['year2digit']))
+        elseif (isset($val['year2digit']))
         {
-            if ($val['century'])
+            $year = $val['year2digit'];
+            if (isset($val['century']))
                 $year = $val['century'] . $year;
             else
             {
@@ -508,15 +511,16 @@ class MWListFeed
                     $year = ($c-1) . $year;
             }
         }
-        else if ($def['year'])
+        elseif (isset($def['year']))
             $year = $def['year'];
-        else if ($anyway)
+        elseif ($anyway)
             $year = date('Y');
-        if ($val['month'])
+        $month = NULL;
+        if (isset($val['month']))
             $month = 0+$val['month'];
-        else if ($month = $val['monthname'])
+        elseif (isset($val['monthname']))
         {
-            $month = mb_strtolower($month);
+            $month = mb_strtolower($val['monthname']);
             foreach (self::$monthmsgs as $key => $msg)
             {
                 if ($month == $msg ||
@@ -530,21 +534,22 @@ class MWListFeed
             if (!is_numeric($month))
                 $month = NULL;
         }
-        if (!$month)
+        if (!$month && isset($def['month']))
             $month = $def['month'];
         if (!$month && $anyway)
             $month = date('m');
-        if ($val['day'])
+        $day = NULL;
+        if (isset($val['day']))
             $day = 0+$val['day'];
-        else if ($def['day'])
+        elseif (isset($def['day']))
             $day = $def['day'];
-        else if ($anyway)
+        elseif ($anyway)
             $day = date('d');
         foreach (array('hour', 'minute', 'second') as $s)
         {
-            if ($val[$s])
+            if (isset($val[$s]))
                 $$s = 0+$val[$s];
-            else if ($def[$s])
+            elseif (isset($def[$s]))
                 $$s = $def[$s];
             else
                 $$s = 0;
