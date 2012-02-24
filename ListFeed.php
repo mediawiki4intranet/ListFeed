@@ -248,6 +248,7 @@ class MWListFeed
             $options->setTidy(true);
             $options->setEditSection(false);
             $options->setRemoveComments(false);
+            $options->setNumberHeadings(false);
             if (is_null($text))
             {
                 $article->loadContent();
