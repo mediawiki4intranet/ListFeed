@@ -256,10 +256,9 @@ class MWListFeed
             }
             if (is_null($revision) && $article->mRevision)
                 $revision = $article->mRevision->getId();
-            $oldShowToc = $wgParser->mShowToc;
-            $wgParser->mShowToc = false;
-            $html = $wgParser->parse($text, $article->getTitle(), $options, true, false, $revision)->getText();
-            $wgParser->mShowToc = $oldShowToc;
+            $feedParser = clone $wgParser;
+            $feedParser->mShowToc = false;
+            $html = $feedParser->parse($text, $article->getTitle(), $options, true, true, $revision)->getText();
             $html = preg_replace_callback('/(<(?:a|img)[^<>]*(?:href|src)=")([^<>"\']*)/is', array(__CLASS__, 'normalize_url_callback'), $html);
             // вытаскиваем и обновляем каналы
             $feeds = array();
