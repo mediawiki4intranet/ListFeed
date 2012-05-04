@@ -97,9 +97,10 @@ $wgExtensionCredits['parserhook'][] = array(
     'description'    => 'Allows to export Wiki lists into (static) RSS feeds with a minimal effort',
     'descriptionmsg' => 'listfeed-desc',
 );
-$wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
-$wgExtensionFunctions[] = array('MWListFeed', 'init');
+$wgExtensionFunctions[] = 'MWListFeed::init';
+$wgHooks['ParserFirstCallInit'][] = 'MWListFeed::initParser';
+$wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 
 $egListFeedFeedUrlPrefix = "$wgScriptPath/extensions/ListFeed/rss";
 $egListFeedFeedDir = "$IP/extensions/ListFeed/rss";
@@ -153,13 +154,16 @@ class MWListFeed
     static $monthmsgs = array();
     static function init()
     {
-        global $wgParser;
         wfLoadExtensionMessages('ListFeed');
         foreach (self::$monthkeys as $key => $month)
             self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
-        $wgParser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
-        $wgParser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
-        $wgParser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
+    }
+    static function initParser($parser)
+    {
+        $parser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
+        $parser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
+        $parser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
+        return true;
     }
     static function feedFn($name, $prefix = NULL)
     {
