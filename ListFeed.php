@@ -155,11 +155,13 @@ class MWListFeed
     static function init()
     {
         wfLoadExtensionMessages('ListFeed');
-        foreach (self::$monthkeys as $key => $month)
-            self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
     }
     static function initParser($parser)
     {
+        foreach (self::$monthkeys as $key => $month)
+        {
+            self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
+        }
         $parser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
         $parser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
         $parser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
