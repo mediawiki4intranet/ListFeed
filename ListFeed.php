@@ -98,7 +98,6 @@ $wgExtensionCredits['parserhook'][] = array(
     'descriptionmsg' => 'listfeed-desc',
 );
 $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php';
-$wgExtensionFunctions[] = 'MWListFeed::init';
 $wgHooks['ParserFirstCallInit'][] = 'MWListFeed::initParser';
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 
@@ -152,10 +151,6 @@ class MWListFeed
         'dec' => 12,
     );
     static $monthmsgs = array();
-    static function init()
-    {
-        wfLoadExtensionMessages('ListFeed');
-    }
     static function initParser($parser)
     {
         foreach (self::$monthkeys as $key => $month)
