@@ -23,13 +23,11 @@
 
 /*
 
-INSTALLATION
+INSTALLATION:
 
-$egListFeedFeedUrlPrefix = "<URL location of generated static rss directory>"; // default "$wgScriptPath/extensions/ListFeed/rss"
-$egListFeedFeedDir = "<Filesystem location of generated static rss directory>"; // default "$IP/extensions/ListFeed/rss"
 require_once("$IP/extensions/ListFeed/ListFeed.php");
 
-USAGE
+USAGE:
 
 This extension enables two new tags - <listfeed> and <endlistfeed>, and a
 parser function - {{#listfeedurl:Feed Name}} which gives a URL location for feed
@@ -37,7 +35,8 @@ with a given name. With ListFeed, you can convert any bullet-list or numbered li
 into an RSS feed which is automatically updated on page changes.
 
 Feeds are identified by their names. So two <listfeed>'s with the same name will
-overwrite each other on each page update.
+overwrite each other on each page update. RSS files are put into generated/rss
+in your upload directory.
 
 To use ListFeed, you must add the following _before_ your list:
 <listfeed name="<FEED NAME>" [OPTIONS]>
@@ -101,8 +100,7 @@ $wgExtensionMessagesFiles['ListFeed'] = dirname(__FILE__) . '/ListFeed.i18n.php'
 $wgHooks['ParserFirstCallInit'][] = 'MWListFeed::initParser';
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 
-$egListFeedFeedUrlPrefix = "$wgScriptPath/extensions/ListFeed/rss";
-$egListFeedFeedDir = "$IP/extensions/ListFeed/rss";
+$egListFeedLocation = 'generated/rss';
 
 class RSSFeedWithoutHttpHeaders extends RSSFeed
 {
@@ -162,33 +160,20 @@ class MWListFeed
         $parser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
         return true;
     }
-    static function feedFn($name, $prefix = NULL)
+    static function feedFn($name)
     {
-        if (!$prefix)
-        {
-            global $egListFeedFeedDir;
-            $prefix = $egListFeedFeedDir;
-            if (!$prefix)
-                $prefix = dirname(__FILE__).'/rss';
-        }
-        $prefix = preg_replace('#/+$#', '', $prefix);
-        // preg_replace не работает как положено :-( не понимает юникодные классы символов
+        global $egListFeedLocation;
+        // preg_replace в старых PHP не работает как положено :-( не понимает юникодные классы символов
         mb_regex_encoding('utf-8');
         $name = mb_eregi_replace('[[:^alnum:]]+', '_', $name);
         $name = mb_eregi_replace('^_|_$', '', $name);
-        $name = $prefix.'/'.$name.'.rss';
+        $name = $egListFeedLocation.'/'.$name.'.rss';
         return $name;
     }
     static function feedUrl($parser, $name)
     {
-        global $egListFeedFeedUrlPrefix, $wgScriptPath, $wgServer;
-        $p = $egListFeedFeedUrlPrefix;
-        if (!$p)
-        {
-            $p = $wgServer . $wgScriptPath . '/extensions/ListFeed/rss';
-            @mkdir(dirname(__FILE__).'/rss');
-        }
-        return self::feedFn($name, $p);
+        global $wgUploadPath;
+        return rtrim($wgUploadPath, '/') . '/' . self::feedFn($name);
     }
     static function tag_listfeed($input, $args, $parser)
     {
@@ -238,7 +223,7 @@ class MWListFeed
     }
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
-        global $wgParser, $wgContLang;
+        global $wgParser, $wgContLang, $wgUploadDirectory;
         if (preg_match('/<listfeed[^<>]*>/is', $text))
         {
             // получаем HTML-код статьи с абсолютными ссылками
@@ -255,11 +240,9 @@ class MWListFeed
                 $article->loadContent();
                 $text = $article->mContent;
             }
-            if (is_null($revision) && $article->mRevision)
-                $revision = $article->mRevision->getId();
             $feedParser = clone $wgParser;
             $feedParser->mShowToc = false;
-            $html = $feedParser->parse($text, $article->getTitle(), $options, true, true, $revision)->getText();
+            $html = $feedParser->parse($text, $article->getTitle(), $options, true, true)->getText();
             $html = preg_replace_callback('/(<(?:a|img)[^<>]*(?:href|src)=")([^<>"\']*)/is', array(__CLASS__, 'normalize_url_callback'), $html);
             // вытаскиваем и обновляем каналы
             $feeds = array();
@@ -383,7 +366,13 @@ class MWListFeed
                 $rss = ob_get_contents();
                 ob_end_clean();
                 // и сохраняем её в файл
-                file_put_contents(self::feedFn($args['name']), $rss);
+                $fn = $wgUploadDirectory.'/'.self::feedFn($args['name']);
+                $dir = dirname($fn);
+                if (!is_dir($dir))
+                {
+                    mkdir($dir, 0777, true);
+                }
+                file_put_contents($fn, $rss);
             }
         }
         return true;
