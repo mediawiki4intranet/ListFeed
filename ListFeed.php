@@ -101,6 +101,8 @@ $wgHooks['ParserFirstCallInit'][] = 'MWListFeed::initParser';
 $wgHooks['ArticleSaveComplete'][] = 'MWListFeed::ArticleSaveComplete';
 
 $egListFeedLocation = 'generated/rss';
+$egListFeedFeedUrlPrefix = NULL;
+$egListFeedFeedDir = NULL;
 
 class RSSFeedWithoutHttpHeaders extends RSSFeed
 {
@@ -152,6 +154,13 @@ class MWListFeed
 
     static function initParser($parser)
     {
+        // Backwards compatibility
+        global $wgUploadPath, $wgUploadDirectory, $egListFeedFeedUrlPrefix, $egListFeedFeedDir, $egListFeedLocation;
+        if ($egListFeedFeedUrlPrefix === NULL)
+        {
+            $egListFeedFeedUrlPrefix = $wgUploadPath.'/'.$egListFeedLocation;
+            $egListFeedFeedDir = $wgUploadDirectory.'/'.$egListFeedLocation;
+        }
         foreach (self::$monthkeys as $key => $month)
         {
             self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
@@ -164,19 +173,17 @@ class MWListFeed
 
     static function feedFn($name)
     {
-        global $egListFeedLocation;
         // preg_replace в старых PHP не работает как положено :-( не понимает юникодные классы символов
         mb_regex_encoding('utf-8');
         $name = mb_eregi_replace('[[:^alnum:]]+', '_', $name);
         $name = mb_eregi_replace('^_|_$', '', $name);
-        $name = $egListFeedLocation.'/'.$name.'.rss';
-        return $name;
+        return $name.'.rss';
     }
 
     static function feedUrl($parser, $name)
     {
-        global $wgUploadPath;
-        return rtrim($wgUploadPath, '/') . '/' . self::feedFn($name);
+        global $egListFeedFeedUrlPrefix;
+        return rtrim($egListFeedFeedUrlPrefix, '/') . '/' . self::feedFn($name);
     }
 
     static function tag_listfeed($input, $args, $parser)
@@ -244,7 +251,7 @@ class MWListFeed
 
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
-        global $wgParser, $wgContLang, $wgUploadDirectory;
+        global $wgParser, $wgContLang, $wgListFeedFeedDir;
         if (preg_match('/<listfeed[^<>]*>/is', $text))
         {
             // получаем HTML-код статьи с абсолютными ссылками
@@ -425,7 +432,7 @@ class MWListFeed
                 $rss = ob_get_contents();
                 ob_end_clean();
                 // и сохраняем её в файл
-                $fn = $wgUploadDirectory.'/'.self::feedFn($args['name']);
+                $fn = $egListFeedFeedDir.'/'.self::feedFn($args['name']);
                 $dir = dirname($fn);
                 if (!is_dir($dir))
                 {
