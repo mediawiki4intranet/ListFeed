@@ -149,6 +149,7 @@ class MWListFeed
         'dec' => 12,
     );
     static $monthmsgs = array();
+
     static function initParser($parser)
     {
         foreach (self::$monthkeys as $key => $month)
@@ -160,6 +161,7 @@ class MWListFeed
         $parser->setFunctionHook('listfeedurl', array('MWListFeed', 'feedUrl'));
         return true;
     }
+
     static function feedFn($name)
     {
         global $egListFeedLocation;
@@ -170,57 +172,76 @@ class MWListFeed
         $name = $egListFeedLocation.'/'.$name.'.rss';
         return $name;
     }
+
     static function feedUrl($parser, $name)
     {
         global $wgUploadPath;
         return rtrim($wgUploadPath, '/') . '/' . self::feedFn($name);
     }
+
     static function tag_listfeed($input, $args, $parser)
     {
         $r = '<link rel="alternate" type="application/rss+xml" title="'.$args['name'].
              '" href="'.self::feedUrl($parser, $args['name']).'"></link><!-- listfeed ';
         foreach ($args as $name => $value)
+        {
             $r .= htmlspecialchars($name).'="'.htmlspecialchars($value).'" ';
+        }
         $r .= '-->';
         if ($input)
+        {
             $r .= '<!-- listfeed_description -->'.$parser->recursiveTagParse($input).'<!-- /listfeed_description -->';
+        }
         return $r;
     }
+
     static function tag_endlistfeed($input, $args, $parser)
     {
         return '<!-- /listfeed -->';
     }
+
     static function falsemin($a, $b)
     {
         if ($a === false || $b !== false && $b < $a)
+        {
             return $b;
+        }
         return $a;
     }
+
     static function normalize_url($l, $pre)
     {
         if (!empty($l) && !empty($pre))
         {
             if (substr($l, 0, 2) == './')
+            {
                 $l = substr($l, 2);
+            }
             if (!preg_match('#^[a-z0-9_]+://#is', $l))
             {
                 if ($l{0} != '/')
                 {
                     if ($pre{strlen($pre)-1} != '/')
+                    {
                         $pre .= '/';
+                    }
                     $l = $pre . $l;
                 }
                 elseif (preg_match('#^[a-z0-9_]+://#is', $pre, $m))
+                {
                     $l = substr($pre, 0, strpos($pre, '/', strlen($m[0]))) . $l;
+                }
             }
             return $l;
         }
         return $l;
     }
+
     static function normalize_url_callback($m)
     {
         return $m[1].self::normalize_url($m[2], self::$urlbase);
     }
+
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
         global $wgParser, $wgContLang, $wgUploadDirectory;
@@ -253,7 +274,9 @@ class MWListFeed
                 $prop = $m[1][0];
                 $about = '';
                 if (!preg_match('#<!--\s*/listfeed\s*-->#is', $html, $m, PREG_OFFSET_CAPTURE, $p+1))
+                {
                     break;
+                }
                 $e = $m[0][1];
                 $feed = substr($html, $p, $e-$p);
                 if (preg_match('#<!--\s*listfeed_description\s*-->(.*)<!--\s*/listfeed_description\s*-->#is', $feed, $m, PREG_OFFSET_CAPTURE))
@@ -269,18 +292,28 @@ class MWListFeed
                 $args = array();
                 preg_match_all('/([^=\s]+)="([^"]*)"/is', $feed[1], $ar, PREG_SET_ORDER);
                 foreach ($ar as $i)
+                {
                     $args[html_entity_decode($i[1])] = html_entity_decode($i[2]);
+                }
                 if ($feed[2])
+                {
                     $args['about'] = $feed[2];
+                }
                 $feed = $feed[0];
                 if (!$args['name'])
+                {
                     continue;
+                }
                 $date_re = '^(?:[^:]+|<[^<>]*>)*%H:%M(?::%S)?[\s,]*%e\s+%b\s+%Y(?:\s*\([A-Z]{3}\))?(?:\s*:?)';
                 if (isset($args['date']))
+                {
                     $date_re = $args['date'];
+                }
                 $headdate_re = '';
                 if (isset($args['headingdate']))
+                {
                     $headdate_re = $args['headingdate'];
+                }
                 // потом вытаскиваем элементы с учётом вложенных списков...
                 $items = array();
                 $feed = htmlspecialchars_decode($feed);
@@ -297,10 +330,14 @@ class MWListFeed
                     $pp = $s;
                     $neg = substr($feed, $s+1, 1) == '/' ? -1 : 1;
                     if (($s = strpos($feed, '>', $s)) === false)
+                    {
                         break;
+                    }
                     $s++;
                     if ($in == 0)
+                    {
                         $start = $s;
+                    }
                     $in += $neg;
                     if ($in == 0)
                     {
@@ -311,36 +348,56 @@ class MWListFeed
                             {
                                 $d = self::parse_date($head, $headdate_re, false, $defdate, false);
                                 if (is_array($d))
+                                {
                                     $defdate = $d;
+                                }
                                 else
+                                {
                                     $defdate['epoch'] = $d;
+                                }
                             }
                         }
                         $lastend = $pp;
                         $item = substr($feed, $start, $pp-$start);
                         // вытаскиваем заголовок, ссылку, хеш
                         if (($p = self::falsemin(strpos($item, '<dl>'), strpos($item, '<br>'))) !== false)
+                        {
                             $title = substr($item, 0, $p);
+                        }
                         else
+                        {
                             $title = $item;
+                        }
                         $title = strip_tags($title);
                         self::parse_date($title, $date_re, true);
                         $itemnosign = $item;
                         $d = self::parse_date($itemnosign, $date_re, true, $defdate);
                         if (!$d)
+                        {
                             $d = wfTimestamp(TS_UNIX, $article->getTimestamp());
+                        }
                         $hash = md5($itemnosign != $item ? $d.':'.$itemnosign : $item);
                         if (preg_match('#<a[^<>]*href=["\']([^<>"\']+)["\']#is', $itemnosign, $p))
+                        {
                             $link = $p[1];
+                        }
                         else
+                        {
                             $link = $article->getTitle()->getFullUrl().'#feeditem'.$hash;
+                        }
                         if ($d > $maxdate)
+                        {
                             $maxdate = $d;
+                        }
                         $author = '';
                         if (preg_match('#<a[^<>]*href=["\'][^<>\'"\s]*'.preg_quote(urlencode($wgContLang->getNsText(NS_USER))).':([^<>\'"\s\#]*)#is', $item, $m))
+                        {
                             $author = urldecode($m[1]);
+                        }
                         if (!$author && $user)
+                        {
                             $author = $user->getName();
+                        }
                         $items[] = array(
                             'feed'     => $args['name'],
                             'text'     => $item,
@@ -361,7 +418,9 @@ class MWListFeed
                 $feedStream = new RSSFeedWithoutHttpHeaders($args['name'], $args['about'], self::feedUrl($wgParser, $args['name']), $maxdate);
                 $feedStream->outHeader();
                 foreach ($items as $item)
+                {
                     $feedStream->outItem(new FeedItem($item['title'], $item['text'], $item['link'], $item['created'], $item['author']));
+                }
                 $feedStream->outFooter();
                 $rss = ob_get_contents();
                 ob_end_clean();
@@ -377,24 +436,37 @@ class MWListFeed
         }
         return true;
     }
+
     // функция сравнения дат элементов
     static function item_compare($a, $b)
     {
         if ($a['created'] < $b['created'])
+        {
             return 1;
+        }
         elseif ($a['created'] > $b['created'])
+        {
             return -1;
+        }
         if ($a['i'] < $b['i'])
+        {
             return 1;
+        }
         elseif ($a['i'] > $b['i'])
+        {
             return -1;
+        }
         return 0;
     }
+
     static $date_pcre_cache;
+
     static function compile_date_re($date_re)
     {
         if (self::$date_pcre_cache[$date_re])
+        {
             return self::$date_pcre_cache[$date_re];
+        }
         // сначала определяем занятые ключи
         preg_match_all('/'.str_replace('/','\\/',$date_re).'/', '', $nonfree, PREG_PATTERN_ORDER);
         $key = 1;
@@ -405,7 +477,9 @@ class MWListFeed
         while (preg_match('/^([^%]*)%(.)/s', $d, $m))
         {
             while (array_key_exists('d'.$key, $nonfree))
+            {
                 $key++;
+            }
             $arg = false;
             $pcre .= str_replace('/', '\\/', $m[1]);
             $d = substr($d, strlen($m[0]));
@@ -442,7 +516,9 @@ class MWListFeed
                 $arg = 'epoch';
             }
             elseif ($m[2] == '%')
+            {
                 $pcre .= '%';
+            }
             else
             {
                 /* Error - unknown format character */
@@ -456,6 +532,7 @@ class MWListFeed
         $pcre .= str_replace('/', '\\/', $d);
         return $date_pcre_cache[$date_re] = array($pcre, $argv);
     }
+
     static function parse_date(&$text, $date_re, $strip = false, $def = array(), $anyway = true)
     {
         list($pcre, $argv) = self::compile_date_re($date_re);
@@ -463,10 +540,16 @@ class MWListFeed
         if (preg_match("/$pcre/is", $text, $m, PREG_OFFSET_CAPTURE))
         {
             if ($strip)
+            {
                 $text = mb_substr($text, 0, $m[0][1]) . mb_substr($text, $m[0][1]+mb_strlen($m[0][0]));
+            }
             foreach ($argv as $k => $v)
+            {
                 if (strlen($m[$k][0]))
+                {
                     $val[$v] = $m[$k][0];
+                }
+            }
         }
         if (!$val)
         {
@@ -474,7 +557,9 @@ class MWListFeed
             wfDebug(__CLASS__.": Unparsed date text: $text, date regexp is $date_re\n");
         }
         if (isset($val['epoch']))
+        {
             return $val['epoch'];
+        }
         elseif (isset($def['epoch']))
         {
             $t = $def['epoch'];
@@ -486,28 +571,42 @@ class MWListFeed
             $def['second'] = date('s', $t);
         }
         if (isset($val['year']))
+        {
             $year = 0+$val['year'];
+        }
         elseif (isset($val['year2digit']))
         {
             $year = $val['year2digit'];
             if (isset($val['century']))
+            {
                 $year = $val['century'] . $year;
+            }
             else
             {
                 $c = date('Y') % 100;
                 if (($c < 50) == ($year < 50))
+                {
                     $year = $c . $year;
+                }
                 else
+                {
                     $year = ($c-1) . $year;
+                }
             }
         }
         elseif (isset($def['year']))
+        {
             $year = $def['year'];
+        }
         elseif ($anyway)
+        {
             $year = date('Y');
+        }
         $month = NULL;
         if (isset($val['month']))
+        {
             $month = 0+$val['month'];
+        }
         elseif (isset($val['monthname']))
         {
             $month = mb_strtolower($val['monthname']);
@@ -522,29 +621,48 @@ class MWListFeed
                 }
             }
             if (!is_numeric($month))
+            {
                 $month = NULL;
+            }
         }
         if (!$month && isset($def['month']))
+        {
             $month = $def['month'];
+        }
         if (!$month && $anyway)
+        {
             $month = date('m');
+        }
         $day = NULL;
         if (isset($val['day']))
+        {
             $day = 0+$val['day'];
+        }
         elseif (isset($def['day']))
+        {
             $day = $def['day'];
+        }
         elseif ($anyway)
+        {
             $day = date('d');
+        }
         foreach (array('hour', 'minute', 'second') as $s)
         {
             if (isset($val[$s]))
+            {
                 $$s = 0+$val[$s];
+            }
             elseif (isset($def[$s]))
+            {
                 $$s = $def[$s];
+            }
             else
+            {
                 $$s = 0;
+            }
         }
         if (!$anyway && (!$month || !$day || !$year))
+        {
             return array(
                 'day'    => $day,
                 'month'  => $month,
@@ -553,6 +671,7 @@ class MWListFeed
                 'minute' => $minute,
                 'second' => $second,
             );
+        }
         return mktime($hour, $minute, $second, $month, $day, $year);
     }
 };
