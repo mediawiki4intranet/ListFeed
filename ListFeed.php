@@ -251,7 +251,7 @@ class MWListFeed
 
     static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
-        global $wgParser, $wgContLang, $wgListFeedFeedDir;
+        global $wgParser, $wgContLang, $egListFeedFeedDir;
         if (preg_match('/<listfeed[^<>]*>/is', $text))
         {
             // получаем HTML-код статьи с абсолютными ссылками
