@@ -609,6 +609,10 @@ class MWListFeed
         {
             $year = date('Y');
         }
+        else
+        {
+            $year = 0;
+        }
         $month = NULL;
         if (isset($val['month']))
         {
