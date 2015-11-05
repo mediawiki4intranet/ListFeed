@@ -182,8 +182,8 @@ class MWListFeed
 
     static function feedUrl($parser, $name)
     {
-        global $egListFeedFeedUrlPrefix;
-        return rtrim($egListFeedFeedUrlPrefix, '/') . '/' . self::feedFn($name);
+        global $wgServer, $egListFeedFeedUrlPrefix;
+        return $wgServer . rtrim($egListFeedFeedUrlPrefix, '/') . '/' . self::feedFn($name);
     }
 
     static function tag_listfeed($input, $args, $parser)
@@ -296,7 +296,7 @@ class MWListFeed
             foreach ($feeds as $feed)
             {
                 // сначала параметры канала
-                $args = array();
+                $args = array('about' => '');
                 preg_match_all('/([^=\s]+)="([^"]*)"/is', $feed[1], $ar, PREG_SET_ORDER);
                 foreach ($ar as $i)
                 {
