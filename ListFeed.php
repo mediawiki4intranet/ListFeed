@@ -249,7 +249,7 @@ class MWListFeed
         return $m[1].self::normalize_url($m[2], self::$urlbase);
     }
 
-    static function ArticleSaveComplete(&$article, &$user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
+    static function ArticleSaveComplete($article, $user, $text, $summary, $minoredit, $watchthis, $sectionanchor, &$flags, $revision)
     {
         global $wgParser, $wgContLang, $egListFeedFeedDir;
         if (preg_match('/<listfeed[^<>]*>/is', $text))
