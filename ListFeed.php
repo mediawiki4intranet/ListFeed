@@ -163,7 +163,10 @@ class MWListFeed
         }
         foreach (self::$monthkeys as $key => $month)
         {
-            self::$monthmsgs[$key] = mb_strtolower(wfMsgReal($key, array(), false));
+            $newvariant = mb_strtolower(wfMessage( $key )->text());
+            // $oldvariant = mb_strtolower(wfMsgReal($key, array(), false));
+            // assert( $newvariant == $oldvariant);
+            self::$monthmsgs[$key] = $newvariant;
         }
         $parser->setHook('listfeed', array(__CLASS__, 'tag_listfeed'));
         $parser->setHook('endlistfeed', array(__CLASS__, 'tag_endlistfeed'));
