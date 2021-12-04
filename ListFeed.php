@@ -469,11 +469,11 @@ class MWListFeed
         return 0;
     }
 
-    static $date_pcre_cache;
+    static $date_pcre_cache = [];
 
     static function compile_date_re($date_re)
     {
-        if (self::$date_pcre_cache[$date_re])
+        if (!empty(self::$date_pcre_cache[$date_re]))
         {
             return self::$date_pcre_cache[$date_re];
         }
